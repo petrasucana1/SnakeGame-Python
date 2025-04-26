@@ -3,37 +3,18 @@ import sys
 import json
 import random
 import os
+import math
 
-pygame.mixer.init() 
+pygame.mixer.init()
 
-CELL_SIZE = 20 
-FPS = 8 
+CELL_SIZE = 20
+FPS = 8
+STATUS_BAR_HEIGHT = 40
+BORDER_THICKNESS = 8
 
 class SnakeGame:
     def __init__(self, config_file):
-        """
-        Initializes the Snake game with the specified configuration file.
-
-        Args:
-            config_file (str): Path to the JSON configuration file.
-
-        Attributes:
-            width (int): Width of the game board in cells.
-            height (int): Height of the game board in cells.
-            obstacles (list): List of obstacle positions from the configuration file.
-            screen (pygame.Surface): Game screen surface.
-            clock (pygame.time.Clock): Clock to control the game's FPS.
-            snake (list): List of dictionaries representing the snake's body segments.
-            direction (str): Current direction of the snake's movement.
-            food (dict): Current position of the food on the board.
-            score (int): Current score of the player.
-            high_score (int): The highest score achieved during the session.
-
-        Raises:
-            FileNotFoundError: If the configuration file does not exist.
-            json.JSONDecodeError: If the configuration file is not a valid JSON.
-        """
-
+        """Initializează jocul Snake: încarcă configurațiile, imaginile și sunetele necesare, și setează fereastra de joc."""
         try:
             with open(config_file, 'r') as file:
                 configuration = json.load(file)
@@ -50,179 +31,190 @@ class SnakeGame:
 
         pygame.init()
 
+        self.food_images = [
+            pygame.transform.scale(pygame.image.load("images/apple.png"), (int(CELL_SIZE * 2), int(CELL_SIZE * 2))),
+            pygame.transform.scale(pygame.image.load("images/pear.png"), (int(CELL_SIZE * 2), int(CELL_SIZE * 2.2))),
+            pygame.transform.scale(pygame.image.load("images/peach.png"), (int(CELL_SIZE * 2), int(CELL_SIZE * 2.2)))
+        ]
+
+        self.status_images = [
+            pygame.transform.scale(pygame.image.load("images/apple.png"), (28, 28)),
+            pygame.transform.scale(pygame.image.load("images/pear.png"), (24, 29)),
+            pygame.transform.scale(pygame.image.load("images/peach.png"), (24, 30))
+        ]
+
+        self.obstacles_images = [
+            pygame.transform.scale(pygame.image.load("images/rock.png"), (int(CELL_SIZE * 2), int(CELL_SIZE * 2))),
+            pygame.transform.scale(pygame.image.load("images/grass.png"), (int(CELL_SIZE * 2), int(CELL_SIZE * 2.2)))
+        ]
+
         try:
-            self.eat_sound = pygame.mixer.Sound('bite.mp3')  
+            self.eat_sound = pygame.mixer.Sound('sounds/bite.mp3')
         except pygame.error:
             print("Error: 'bite.mp3' sound file not found.")
             sys.exit(1)
 
         try:
-            self.game_over_sound = pygame.mixer.Sound('game_over.wav') 
+            self.game_over_sound = pygame.mixer.Sound('sounds/game_over.wav')
         except pygame.error:
             print("Error: 'game_over.wav' sound file not found.")
             sys.exit(1)
 
-        self.screen = pygame.display.set_mode((self.width * CELL_SIZE, self.height * CELL_SIZE))
+        self.screen = pygame.display.set_mode((self.width * CELL_SIZE + 2 * BORDER_THICKNESS, self.height * CELL_SIZE + STATUS_BAR_HEIGHT + BORDER_THICKNESS))
         pygame.display.set_caption("Snake Game")
-        self.clock = pygame.time.Clock() 
+        self.clock = pygame.time.Clock()
 
-        self.new_game()
         self.high_score = 0
-    
-    def new_game(self):
-        """
-        Resets the game state for a new game session.
+        self.new_game()
 
-        Initializes the snake's position, direction, food, and obstacles.
-        """
-        self.snake = [{"x":0, "y":0}]
+
+    def new_game(self):
+        """Resetează jocul: reinițializează variabilele și creează un nou joc."""
+        self.snake = [{"x": 0, "y": 0}]
         self.direction = "RIGHT"
-        self.food = self.generate_food()
         self.score = 0
-        self.active_obstacles = self.obstacles[:3]
+        self.total_fruits = 0
+        self.fruit_counter = {"apple": 0, "pear": 0, "peach": 0}
+        self.active_obstacles = []
+        for obstacle in self.obstacles[:3]:
+            self.active_obstacles.append({"x": obstacle["x"], "y": obstacle["y"], "image": random.choice(self.obstacles_images)})
+        self.food = self.generate_food()
+
 
     def generate_food(self):
-        """
-        Generates a random position for the food that does not overlap with the snake or obstacles.
+        """Generează o poziție aleatoare pentru mâncare, asigurându-se că nu se suprapune cu obstacolele sau cu șarpele."""
+        food_position = {"x": random.randint(0, self.width - 1), "y": random.randint(0, self.height - 1)}
+        while any(food_position["x"] == o["x"] and food_position["y"] == o["y"] for o in self.active_obstacles) or food_position in self.snake:
+            food_position = {"x": random.randint(0, self.width - 1), "y": random.randint(0, self.height - 1)}
 
-        Returns:
-            dict: Position of the food as a dictionary with 'x' and 'y' keys.
-        """
-        food_position = {"x":random.randint(0,self.width-1), "y":random.randint(0, self.height-1)}
-
-        while food_position in self.snake and food_position in self.active_obstacles:
-             food_position = {"x":random.randint(0,self.width-1), "y":random.randint(0, self.height-1)}
-
+        self.food_type = random.choice(["apple", "pear", "peach"])
+        index = {"apple": 0, "pear": 1, "peach": 2}[self.food_type]
+        self.food_image = self.food_images[index]
         return food_position
-    
+
+
     def table_drawing(self):
-        """
-        Draws the game board grid on the screen.
-        """
+        """Desenează tabla de joc: creează un model de tablă cu celule colorate."""
+        color1 = (170, 215, 81)
+        color2 = (162, 209, 73)
         for x in range(self.width):
             for y in range(self.height):
-                cell = pygame.Rect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-                pygame.draw.rect(self.screen, (200, 200, 200), cell)  
-                pygame.draw.rect(self.screen, (255, 255, 255), cell, 1) 
+                cell_color = color1 if (x + y) % 2 == 0 else color2
+                cell = pygame.Rect(x * CELL_SIZE + BORDER_THICKNESS, y * CELL_SIZE + STATUS_BAR_HEIGHT + BORDER_THICKNESS, CELL_SIZE, CELL_SIZE)
+                pygame.draw.rect(self.screen, cell_color, cell)
+
 
     def snake_drawing(self):
-        """
-        Draws the snake on the screen.
-        """
-        for snake_part in self.snake:
-            cell = pygame.Rect(snake_part["x"] * CELL_SIZE, snake_part["y"] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-            pygame.draw.rect(self.screen, (0, 150, 0), cell)
-            pygame.draw.rect(self.screen, (0, 50, 0), cell, 1) 
-    
+        """Desenează șarpele: fiecare segment al șarpelui este desenat cu o animație de undă."""
+        color_snake = (0, 160, 0)
+        wave_speed = 5
+        wave_amplitude = 3
+
+        time_now = pygame.time.get_ticks() / 1000
+        snake_length = len(self.snake)
+
+        for index, snake_part in enumerate(self.snake):
+            scale = 1 - (index / snake_length) * 0.4
+            segment_size = int(CELL_SIZE * scale)
+
+            wave = math.sin(time_now * wave_speed + index * 0.5) * wave_amplitude
+
+            cell_x = snake_part["x"] * CELL_SIZE + BORDER_THICKNESS + (CELL_SIZE - segment_size) // 2
+            cell_y = snake_part["y"] * CELL_SIZE + STATUS_BAR_HEIGHT + BORDER_THICKNESS + (CELL_SIZE - segment_size) // 2 + wave
+
+            cell = pygame.Rect(cell_x, cell_y, segment_size, segment_size)
+            pygame.draw.rect(self.screen, color_snake, cell, border_radius=segment_size // 4)
+
+
     def food_drawing(self):
-        """
-        Draws the food on the screen.
-        """
-        cell = pygame.Rect(self.food["x"] * CELL_SIZE, self.food["y"] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-        pygame.draw.rect(self.screen, (200, 200, 0), cell)  
-        pygame.draw.rect(self.screen, (255, 230, 0), cell, 2) 
+        """Desenează mâncarea: imaginea mâncării este plasată pe tablă."""
+        apple_rect = self.food_image.get_rect()
+        apple_rect.center = (self.food["x"] * CELL_SIZE + CELL_SIZE // 2 + BORDER_THICKNESS, self.food["y"] * CELL_SIZE + CELL_SIZE // 2 + STATUS_BAR_HEIGHT + BORDER_THICKNESS)
+        self.screen.blit(self.food_image, apple_rect)
 
 
     def obstacles_drawing(self):
-        """
-        Draws the obstacles on the screen.
-        """
+        """Desenează obstacolele: fiecare obstacol este desenat pe tablă."""
         for obstacle in self.active_obstacles:
-            cell = pygame.Rect(obstacle["x"] * CELL_SIZE, obstacle["y"] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-            pygame.draw.rect(self.screen, (150, 0, 0), cell)
-            pygame.draw.rect(self.screen, (255, 50, 50), cell, 2)
+            image = obstacle["image"]
+            rect = image.get_rect()
+            rect.center = (obstacle["x"] * CELL_SIZE + CELL_SIZE // 2 + BORDER_THICKNESS, obstacle["y"] * CELL_SIZE + CELL_SIZE // 2 + STATUS_BAR_HEIGHT + BORDER_THICKNESS)
+            self.screen.blit(image, rect)
+
+
+    def draw_status_bar(self):
+        """Desenează bara de stare: afișează scorul, numărul de fructe și tipul acestora."""
+        pygame.draw.rect(self.screen, (40, 100, 40), (0, 0, self.width * CELL_SIZE + 2 * BORDER_THICKNESS, STATUS_BAR_HEIGHT))
+        font = pygame.font.Font(None, 24)
+        start_x = 10
+        fruits = ["apple", "pear", "peach"]
+        for i, fruit in enumerate(fruits):
+            self.screen.blit(self.status_images[i], (start_x, 8))
+            count_text = font.render(f"x {self.fruit_counter[fruit]}", True, (255, 255, 255))
+            self.screen.blit(count_text, (start_x + 30, 12))
+            start_x += 90
+        total_text = font.render(f"Total Score: {self.total_fruits}", True, (255, 255, 255))
+        self.screen.blit(total_text, (self.width * CELL_SIZE - 150, 12))
+
 
     def snake_evolution(self):
-        """
-        Updates the snake's position and checks for interactions with food or obstacles.
-
-        - Moves the snake in the current direction.
-        - Handles teleportation when crossing the board boundaries.
-        - Checks if the snake eats the food and grows in size.
-        - Adds new obstacles every 3 points scored.
-        """
+        """Evoluează șarpele: mută capul șarpelui în direcția curentă și verifică coliziunile."""
         head = self.snake[0].copy()
 
         if self.direction == "UP":
-            head["y"] = head["y"] - 1
+            head["y"] -= 1
         elif self.direction == "DOWN":
-            head["y"] = head["y"] + 1
+            head["y"] += 1
         elif self.direction == "LEFT":
-            head["x"] = head["x"] - 1
-        elif self.direction == "RIGHT": 
-            head["x"] = head["x"] + 1
+            head["x"] -= 1
+        elif self.direction == "RIGHT":
+            head["x"] += 1
 
-        if head["x"] < 0:  
-            head["x"] = self.width - 1  
-        elif head["x"] >= self.width:  
-            head["x"] = 0 
+        head["x"] %= self.width
+        head["y"] %= self.height
 
-        if head["y"] < 0: 
-            head["y"] = self.height - 1  
-        elif head["y"] >= self.height:  
-            head["y"] = 0 
-        
         self.snake.insert(0, head)
 
-        if head == self.food:
-            self.score = self.score + 1
+        if head["x"] == self.food["x"] and head["y"] == self.food["y"]:
+            self.score += 1
+            self.total_fruits += 1
+            self.fruit_counter[self.food_type] += 1
             self.food = self.generate_food()
             self.eat_sound.play()
-
             if self.score % 3 == 0 and len(self.active_obstacles) < len(self.obstacles):
-                self.active_obstacles.append(self.obstacles[len(self.active_obstacles)])
+                next_obstacle = self.obstacles[len(self.active_obstacles)]
+                self.active_obstacles.append({"x": next_obstacle["x"], "y": next_obstacle["y"], "image": random.choice(self.obstacles_images)})
         else:
-            self.snake.pop()    
+            self.snake.pop()
+
 
     def collision_verification(self):
-        """
-        Checks if the snake collides with itself or obstacles.
-
-        Returns:
-            bool: True if a collision occurs, otherwise False.
-        """
+        """Verifică coliziunile: dacă capul șarpelui se ciocnește de obstacole sau de el însuși."""
         head = self.snake[0]
-
-        if head in self.snake[1:] or head in self.active_obstacles:
+        if any(head["x"] == o["x"] and head["y"] == o["y"] for o in self.active_obstacles) or head in self.snake[1:]:
             return True
         return False
-    
+
+
     def end_game(self):
-        """
-        Displays the "Game Over" screen and resets the game.
-
-        - Shows the player's score and the high score.
-        - Plays the "Game Over" sound.
-        - Waits for 2 seconds before resetting the game.
-        """
+        """Finalizează jocul: afișează mesajul de finalizare și redă sunetul corespunzător."""
         font = pygame.font.Font(None, 36)
-
         self.game_over_sound.play()
-
         text = font.render(f"Game Over! Your Score: {self.score}", True, (150, 0, 0))
-        self.screen.blit(text, (self.width * CELL_SIZE // 2 - text.get_width() // 2, self.height * CELL_SIZE // 2 ))
-
+        self.screen.blit(text, (self.width * CELL_SIZE // 2 - text.get_width() // 2, self.height * CELL_SIZE // 2))
         text = font.render(f"High Score: {self.high_score}", True, (0, 150, 0))
         self.screen.blit(text, (self.width * CELL_SIZE // 2 - text.get_width() // 2, self.height * CELL_SIZE // 2 + 40))
-        
-        pygame.display.flip() #actualizare ecran cu textul
-        pygame.time.wait(2000) #asteapta 2 secunde
+        pygame.display.flip()
+        pygame.time.wait(2000)
+
 
     def run(self):
-        """
-        Main loop of the game.
-
-        - Handles events (key presses, quitting).
-        - Updates game state.
-        - Renders the game on the screen.
-        """
         running = True
         while running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
-
-                if event.type == pygame.KEYDOWN:
+                elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_UP and self.direction != "DOWN":
                         self.direction = "UP"
                     elif event.key == pygame.K_DOWN and self.direction != "UP":
@@ -233,17 +225,20 @@ class SnakeGame:
                         self.direction = "RIGHT"
 
             self.snake_evolution()
-
             if self.collision_verification():
                 self.high_score = max(self.high_score, self.score)
                 self.end_game()
                 self.new_game()
 
             self.screen.fill((0, 0, 0))
+            self.draw_status_bar()
             self.table_drawing()
             self.snake_drawing()
             self.food_drawing()
             self.obstacles_drawing()
+
+            border_color = (40, 100, 40)
+            pygame.draw.rect(self.screen, border_color, (0, STATUS_BAR_HEIGHT, self.width * CELL_SIZE + 2 * BORDER_THICKNESS, self.height * CELL_SIZE + BORDER_THICKNESS), BORDER_THICKNESS)
 
             pygame.display.flip()
             self.clock.tick(FPS)
@@ -256,13 +251,9 @@ if __name__ == "__main__":
         sys.exit(1)
 
     config_file = sys.argv[1]
-
     if not os.path.exists(config_file):
         print(f"Error: Configuration file '{config_file}' not found.")
         sys.exit(1)
 
     game = SnakeGame(config_file)
     game.run()
-
-
-
