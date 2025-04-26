@@ -65,7 +65,7 @@ While still relatively simple, this project shows how thoughtful design and smal
 ---
 
 ## **VIDEO:**
-[[Watch the gameplay](https://youtube.com/shorts/46-FgUI1zSY?feature=share)](https://youtube.com/shorts/H-1Y0xbvoVc?feature=share)
+[Watch the gameplay](https://youtube.com/shorts/H-1Y0xbvoVc?feature=share)
 
 ## **PHOTOS:**
 ![image](https://github.com/user-attachments/assets/b0dfbd06-2dea-41f9-9870-56df92020150)
