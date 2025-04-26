@@ -69,6 +69,6 @@ While still relatively simple, this project shows how thoughtful design and smal
 
 ## **PHOTOS:**
 ![image](https://github.com/user-attachments/assets/b0dfbd06-2dea-41f9-9870-56df92020150)
+![26 04 2025_02 28 00_REC](https://github.com/user-attachments/assets/e8805d4f-4f2c-4042-a68d-181ba5f31212)
 
-![Photo](https://github.com/user-attachments/assets/bcf33225-3a29-4cc2-9575-6ecd14f5463a)  
-![Game Over](https://github.com/user-attachments/assets/a12e7098-85bb-4e7a-ae11-c27c3c12aaf4)
+
