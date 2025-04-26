@@ -46,5 +46,7 @@ It was fun learning how to implement game mechanics, handle user input, and inte
 [Watch the gameplay](https://youtube.com/shorts/46-FgUI1zSY?feature=share)
 
 ## **PHOTOS:**
+![image](https://github.com/user-attachments/assets/b0dfbd06-2dea-41f9-9870-56df92020150)
+
 ![Photo](https://github.com/user-attachments/assets/bcf33225-3a29-4cc2-9575-6ecd14f5463a)  
 ![Game Over](https://github.com/user-attachments/assets/a12e7098-85bb-4e7a-ae11-c27c3c12aaf4)
